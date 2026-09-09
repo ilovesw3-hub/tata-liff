@@ -36,6 +36,27 @@
   button:disabled {
     background: #ccc;
   }
+  #memberBox {
+    margin-top: 16px;
+    padding: 12px;
+    background: white;
+    border-radius: 8px;
+    display: none;
+  }
+  #memberBox label {
+    display: block;
+    padding: 6px 0;
+    font-size: 14px;
+  }
+  #testForm {
+    margin-top: 8px;
+  }
+  #testForm input {
+    padding: 8px;
+    font-size: 14px;
+    margin-right: 8px;
+    width: 100px;
+  }
 </style>
 </head>
 <body>
@@ -44,11 +65,22 @@
   <button id="pingBtn" disabled>2. ทดสอบยิง GAS (ping)</button>
   <button id="contextBtn" disabled>3. ทดสอบ get_trip_context</button>
 
+  <div id="memberBox">
+    <strong>4. ทดสอบ liff_expense (custom split)</strong>
+    <div id="testForm">
+      ยอดรวม: <input id="amountInput" type="number" value="100"> หยวน
+      <p>ติ๊กคนที่จะร่วมหารบิลนี้ (ผู้จ่าย = ตัวคุณเอง โดย default):</p>
+      <div id="memberCheckboxes"></div>
+      <button id="expenseBtn">ยิงทดสอบบันทึกรายจ่าย</button>
+    </div>
+  </div>
+
   <script>
     const LIFF_ID = "2011511627-13L1YyxX";
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzp2u97HyICryTxHwEVdAdxk5dYt8wvfiCUSOf1LP5JC6q6e3Y1v6Yx8FzlNQ3tyITE/exec";
 
     let myUid = null;
+    let tripMembers = [];
 
     function log(msg, cls) {
       const el = document.getElementById("status");
@@ -129,6 +161,9 @@
           log("TripName: " + data.tripName);
           log("จำนวนสมาชิก: " + data.members.length);
           log(JSON.stringify(data.members, null, 2));
+
+          tripMembers = data.members;
+          renderMemberCheckboxes();
         } else {
           log("⚠ status = error", "err");
           log("message: " + data.message);
@@ -144,8 +179,67 @@
       }
     }
 
+    function renderMemberCheckboxes() {
+      const box = document.getElementById("memberCheckboxes");
+      box.innerHTML = "";
+      tripMembers.forEach(function (m) {
+        const isMe = m.uid === myUid;
+        const label = document.createElement("label");
+        label.innerHTML =
+          '<input type="checkbox" value="' + m.uid + '" ' + (true ? "checked" : "") + '> ' +
+          m.name + (isMe ? " (คุณ / ผู้จ่าย)" : "");
+        box.appendChild(label);
+      });
+      document.getElementById("memberBox").style.display = "block";
+    }
+
+    async function testLiffExpense() {
+      const amount = Number(document.getElementById("amountInput").value);
+      const checked = Array.from(document.querySelectorAll("#memberCheckboxes input:checked"))
+        .map(function (el) { return el.value; });
+
+      if (!amount || checked.length === 0) {
+        log("\n⚠ กรุณากรอกยอดเงินและติ๊กอย่างน้อย 1 คน", "err");
+        return;
+      }
+
+      log("\n5. กำลังยิง fetch ไปหา GAS (action=liff_expense, custom split) ...");
+      log("ยอดรวม: " + amount + " หยวน / คนที่ติ๊ก: " + checked.length + " คน");
+
+      const btn = document.getElementById("expenseBtn");
+      btn.disabled = true;
+      try {
+        const data = await callGas({
+          action: "liff_expense",
+          uid: myUid,
+          amount: amount,
+          currency: "CNY",
+          category: "ทดสอบระบบ LIFF",
+          note: "ยิงทดสอบจากหน้า test",
+          splitType: "custom",
+          splitMembers: checked
+        });
+
+        if (data.status === "ok") {
+          log("✔ บันทึกสำเร็จ", "ok");
+          log("SplitDetail ที่เขียนลงชีท (หน่วยหยวนต่อคน):");
+          log(JSON.stringify(data.splitDetailWritten, null, 2));
+          log("\n=== ไปเปิด Google Sheets เช็คแถวล่าสุดใน Expenses ได้เลย ===", "ok");
+        } else {
+          log("⚠ status = error", "err");
+          log("message: " + data.message);
+        }
+      } catch (err) {
+        log("✘ fetch error: " + err.message, "err");
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     document.getElementById("pingBtn").addEventListener("click", testPing);
     document.getElementById("contextBtn").addEventListener("click", testTripContext);
+    document.getElementById("expenseBtn").addEventListener("click", testLiffExpense);
     main();
   </script>
 </body>
