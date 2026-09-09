@@ -24,6 +24,7 @@
   .err { color: #E74C3C; font-weight: bold; }
   button {
     margin-top: 16px;
+    margin-right: 8px;
     padding: 12px 20px;
     font-size: 16px;
     border: none;
@@ -41,10 +42,13 @@
   <h2>TATA LIFF — ทดสอบเชื่อมต่อ</h2>
   <div id="status">กำลังเชื่อมต่อ...</div>
   <button id="pingBtn" disabled>2. ทดสอบยิง GAS (ping)</button>
+  <button id="contextBtn" disabled>3. ทดสอบ get_trip_context</button>
 
   <script>
     const LIFF_ID = "2011511627-13L1YyxX";
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzp2u97HyICryTxHwEVdAdxk5dYt8wvfiCUSOf1LP5JC6q6e3Y1v6Yx8FzlNQ3tyITE/exec";
+
+    let myUid = null;
 
     function log(msg, cls) {
       const el = document.getElementById("status");
@@ -70,38 +74,68 @@
 
         log("2. liff.getProfile() ...");
         const profile = await liff.getProfile();
+        myUid = profile.userId;
         log("✔ ได้ profile สำเร็จ", "ok");
         log("UID: " + profile.userId);
         log("Display Name: " + profile.displayName);
 
         log("\n=== ขั้นตอนที่ 1 ผ่านหมด ===", "ok");
-        log("กดปุ่มด้านล่างเพื่อทดสอบยิง request ไปหา GAS ต่อ");
+        log("กดปุ่มด้านล่างเพื่อทดสอบต่อ");
 
         document.getElementById("pingBtn").disabled = false;
+        document.getElementById("contextBtn").disabled = false;
       } catch (err) {
         log("\n✘ เกิดข้อผิดพลาด: " + err.message, "err");
         console.error(err);
       }
     }
 
+    async function callGas(payload) {
+      const res = await fetch(GAS_URL, {
+        method: "POST",
+        // สำคัญ: ใช้ text/plain เพื่อเลี่ยง CORS preflight (OPTIONS request)
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+      });
+      return res.json();
+    }
+
     async function testPing() {
       log("\n3. กำลังยิง fetch ไปหา GAS (action=ping) ...");
       const btn = document.getElementById("pingBtn");
       btn.disabled = true;
-
       try {
-        const res = await fetch(GAS_URL, {
-          method: "POST",
-          // สำคัญ: ใช้ text/plain เพื่อเลี่ยง CORS preflight (OPTIONS request)
-          // ที่ GAS Web App จัดการได้ไม่ตรงไปตรงมา
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ action: "ping" })
-        });
-
-        const data = await res.json();
+        const data = await callGas({ action: "ping" });
         log("✔ ได้ response กลับมาแล้ว", "ok");
         log(JSON.stringify(data, null, 2));
-        log("\n=== ทดสอบ CORS/fetch ผ่าน! ===", "ok");
+      } catch (err) {
+        log("✘ fetch error: " + err.message, "err");
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function testTripContext() {
+      log("\n4. กำลังยิง fetch ไปหา GAS (action=get_trip_context) ...");
+      const btn = document.getElementById("contextBtn");
+      btn.disabled = true;
+      try {
+        const data = await callGas({ action: "get_trip_context", uid: myUid });
+
+        if (data.status === "ok") {
+          log("✔ ได้ trip context กลับมาแล้ว", "ok");
+          log("TripCode: " + data.tripCode);
+          log("TripName: " + data.tripName);
+          log("จำนวนสมาชิก: " + data.members.length);
+          log(JSON.stringify(data.members, null, 2));
+        } else {
+          log("⚠ status = error", "err");
+          log("message: " + data.message);
+          if (data.message === "no_trip_joined") {
+            log("(หมายความว่า uid นี้ยังไม่เคยพิมพ์ JOIN ทริปไหนเลยในแชท — ลองไปพิมพ์ JOIN ในแชทก่อนแล้วกดปุ่มนี้ใหม่)");
+          }
+        }
       } catch (err) {
         log("✘ fetch error: " + err.message, "err");
         console.error(err);
@@ -111,6 +145,7 @@
     }
 
     document.getElementById("pingBtn").addEventListener("click", testPing);
+    document.getElementById("contextBtn").addEventListener("click", testTripContext);
     main();
   </script>
 </body>
