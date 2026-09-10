@@ -1,506 +1,647 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>TATA - บันทึกรายจ่าย</title>
-  
-  <!-- โหลดฟอนต์สไตล์ใบเสร็จ/ตั๋ว -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
-  
-  <!-- LIFF SDK -->
-  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  
-  <style>
-    :root {
-      --bg-color: #EAE6DF;
-      --ticket-bg: #FBF7F0;
-      --text-main: #1B2430;
-      --cny-green: #1F6F5C;
-      --thb-orange: #C97D2E;
-      --border-light: #D9D2C5;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>TATA — บันทึกรายจ่าย</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page-bg: #EFE9DD;
+    --paper: #FBF7F0;
+    --ink: #1B2430;
+    --ink-soft: #5B6472;
+    --rule: #D8CFC0;
+    --jade: #1F6F5C;
+    --jade-soft: #E4EFEC;
+    --amber: #C97D2E;
+    --amber-soft: #F6EAD9;
+    --red: #C1443A;
+    --radius: 18px;
+  }
 
-    * { box-sizing: border-box; }
+  * { box-sizing: border-box; }
 
-    body {
-      font-family: 'IBM Plex Sans Thai', sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-main);
-      margin: 0;
-      padding: 16px;
-      display: flex;
-      justify-content: center;
-      min-height: 100vh;
-    }
+  body {
+    margin: 0;
+    font-family: 'IBM Plex Sans Thai', -apple-system, sans-serif;
+    background: var(--page-bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 28px 16px 40px;
+  }
 
-    /* โครงสร้างตั๋ว/ใบเสร็จ */
-    .ticket {
-      background-color: var(--ticket-bg);
-      width: 100%;
-      max-width: 400px;
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-    }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
 
-    /* ส่วนหัว (Profile) */
-    .header {
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      position: relative;
-    }
-    .profile-img {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      background-color: #ddd;
-      object-fit: cover;
-    }
-    .profile-info {
-      flex: 1;
-    }
-    .profile-title {
-      font-size: 12px;
-      color: #666;
-      margin: 0 0 2px 0;
-    }
-    .profile-name {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0;
-    }
+  .screen {
+    width: 100%;
+    max-width: 420px;
+  }
 
-    /* รอยปรุตั๋ว */
-    .perforation {
-      height: 0;
-      border-bottom: 2px dashed var(--border-light);
-      position: relative;
-    }
-    .perforation::before, .perforation::after {
-      content: '';
-      position: absolute;
-      top: -10px;
-      width: 20px;
-      height: 20px;
-      background-color: var(--bg-color);
-      border-radius: 50%;
-    }
-    .perforation::before { left: -10px; }
-    .perforation::after { right: -10px; }
+  /* ---------- loading / error states ---------- */
+  .center-state {
+    text-align: center;
+    padding: 64px 20px;
+    color: var(--ink-soft);
+  }
+  .center-state .spinner {
+    width: 28px; height: 28px;
+    margin: 0 auto 16px;
+    border: 3px solid var(--rule);
+    border-top-color: var(--jade);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ส่วนฟอร์ม */
-    .form-body {
-      padding: 24px 20px;
-    }
+  .error-card {
+    background: var(--paper);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(27,36,48,0.06);
+  }
+  .error-card .icon { font-size: 32px; margin-bottom: 12px; }
+  .error-card h2 { font-size: 17px; margin: 0 0 8px; }
+  .error-card p { font-size: 14px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 20px; }
+  .error-card code {
+    display: inline-block;
+    background: var(--jade-soft);
+    color: var(--jade);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+  }
 
-    .form-group {
-      margin-bottom: 20px;
-    }
+  /* ---------- ticket card ---------- */
+  .ticket {
+    background: var(--paper);
+    border-radius: var(--radius);
+    box-shadow: 0 1px 2px rgba(27,36,48,0.06), 0 8px 24px rgba(27,36,48,0.05);
+    overflow: visible;
+  }
 
-    .label {
-      display: block;
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 8px;
-      color: #555;
-    }
+  .ticket-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 22px 18px;
+  }
+  .avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--jade);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600;
+    font-size: 15px;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .who-name { font-size: 14.5px; font-weight: 600; }
+  .who-trip {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .phase-tag {
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 20px;
+    letter-spacing: 0.2px;
+  }
+  .phase-tag.pre { background: var(--amber-soft); color: var(--amber); }
+  .phase-tag.on { background: var(--jade-soft); color: var(--jade); }
 
-    /* ยอดเงินและสกุลเงิน */
-    .amount-group {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
-    .amount-input {
-      flex: 1;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 28px;
-      font-weight: 600;
-      padding: 8px 0;
-      border: none;
-      border-bottom: 2px solid var(--text-main);
-      background: transparent;
-      color: var(--text-main);
-      text-align: right;
-      outline: none;
-    }
-    .amount-input::placeholder { color: #ccc; }
-    
-    .currency-btn {
-      padding: 10px 16px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 18px;
-      font-weight: 600;
-      border: none;
-      border-radius: 8px;
-      color: white;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-    .currency-cny { background-color: var(--cny-green); }
-    .currency-thb { background-color: var(--thb-orange); }
+  /* perforated divider — the one deliberate flourish */
+  .divider-punched {
+    position: relative;
+    border-top: 1.5px dashed var(--rule);
+  }
+  .divider-punched::before,
+  .divider-punched::after {
+    content: '';
+    position: absolute;
+    top: -11px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--page-bg);
+  }
+  .divider-punched::before { left: -33px; }
+  .divider-punched::after { right: -33px; }
 
-    /* Input ทั่วไป */
-    input[type="text"] {
-      width: 100%;
-      padding: 12px;
-      font-size: 15px;
-      font-family: inherit;
-      border: 1px solid var(--border-light);
-      border-radius: 8px;
-      background-color: white;
-      outline: none;
-    }
-    input[type="text"]:focus {
-      border-color: var(--cny-green);
-    }
+  .divider-plain {
+    border-top: 1.5px dashed var(--rule);
+    margin: 0 22px;
+  }
 
-    /* Radio Buttons (Split Type) */
-    .split-options {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .radio-label {
-      display: flex;
-      align-items: center;
-      padding: 12px;
-      border: 1px solid var(--border-light);
-      border-radius: 8px;
-      background: white;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .radio-label input { margin-right: 12px; accent-color: var(--cny-green); }
-    .radio-label.selected {
-      border-color: var(--cny-green);
-      background-color: #EAF3F1;
-    }
-    .split-desc {
-      font-size: 12px;
-      color: #666;
-      margin-left: auto;
-    }
+  /* ---------- amount hero ---------- */
+  .amount-section {
+    padding: 26px 22px 20px;
+    text-align: center;
+  }
+  .amount-label {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 10px;
+  }
+  .amount-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+  }
+  .amount-symbol {
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+  #amountInput {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 44px;
+    font-weight: 600;
+    width: 220px;
+    text-align: center;
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  #amountInput::-webkit-outer-spin-button,
+  #amountInput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  #amountInput:focus { color: var(--jade); }
+  #amountInput::placeholder { color: var(--rule); }
 
-    /* Checkbox สมาชิก (Custom Split) */
-    #memberBox {
-      display: none;
-      margin-top: 12px;
-      padding: 12px;
-      background: rgba(255,255,255,0.5);
-      border-radius: 8px;
-      border: 1px dashed var(--border-light);
-    }
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      padding: 8px 0;
-      font-size: 14px;
-    }
-    .checkbox-label input { margin-right: 10px; accent-color: var(--cny-green); }
+  .currency-toggle {
+    display: inline-flex;
+    margin-top: 16px;
+    background: #F1ECE1;
+    border-radius: 30px;
+    padding: 3px;
+  }
+  .currency-toggle button {
+    border: none;
+    background: transparent;
+    padding: 7px 20px;
+    font-size: 13.5px;
+    font-weight: 600;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    border-radius: 26px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .currency-toggle button[aria-pressed="true"][data-cur="CNY"] {
+    background: var(--jade); color: white;
+  }
+  .currency-toggle button[aria-pressed="true"][data-cur="THB"] {
+    background: var(--amber); color: white;
+  }
 
-    /* ปุ่ม Action */
-    .actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 32px;
-    }
-    .btn {
-      flex: 1;
-      padding: 14px;
-      font-size: 16px;
-      font-weight: 600;
-      font-family: inherit;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    .btn-cancel {
-      background-color: transparent;
-      color: #666;
-      border: 1px solid #ccc;
-    }
-    .btn-save {
-      background-color: var(--cny-green);
-      color: white;
-    }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* ---------- form fields ---------- */
+  .field {
+    padding: 18px 22px;
+  }
+  .field-label {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+    display: block;
+  }
+  .text-input {
+    width: 100%;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-size: 15px;
+    padding: 11px 13px;
+    border: 1.5px solid var(--rule);
+    border-radius: 10px;
+    background: #FEFCF8;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .text-input:focus { border-color: var(--jade); }
 
-    /* Loading Overlay */
-    #loadingOverlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(251, 247, 240, 0.9);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 10;
-      border-radius: 12px;
-    }
-    .spinner {
-      border: 3px solid var(--border-light);
-      border-top: 3px solid var(--cny-green);
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin-bottom: 12px;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  </style>
+  .segmented {
+    display: flex;
+    gap: 8px;
+  }
+  .segmented button {
+    flex: 1;
+    border: 1.5px solid var(--rule);
+    background: #FEFCF8;
+    color: var(--ink-soft);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 11px 6px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .segmented button[aria-pressed="true"] {
+    background: var(--jade);
+    border-color: var(--jade);
+    color: white;
+  }
+
+  .member-list {
+    margin-top: 14px;
+    display: none;
+  }
+  .member-list.open {
+    display: block;
+    animation: fadeSlide 0.18s ease;
+  }
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .member-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 2px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .member-row:last-child { border-bottom: none; }
+  .member-row input[type="checkbox"] {
+    width: 18px; height: 18px;
+    accent-color: var(--jade);
+  }
+  .member-row .payer-badge {
+    font-size: 11px;
+    color: var(--jade);
+    background: var(--jade-soft);
+    padding: 1px 7px;
+    border-radius: 20px;
+    margin-left: auto;
+  }
+
+  /* ---------- footer actions ---------- */
+  .actions {
+    display: flex;
+    gap: 10px;
+    padding: 18px 22px 22px;
+  }
+  .btn {
+    flex: 1;
+    padding: 14px;
+    border-radius: 12px;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-cancel {
+    flex: 0 0 auto;
+    padding: 14px 20px;
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1.5px solid var(--rule);
+  }
+  .btn-save {
+    background: var(--jade);
+    color: white;
+  }
+  .btn-save:disabled { opacity: 0.55; cursor: default; }
+
+  .inline-error {
+    margin: 0 22px 14px;
+    font-size: 13px;
+    color: var(--red);
+    background: #FBEAE8;
+    padding: 10px 12px;
+    border-radius: 10px;
+    display: none;
+  }
+  .inline-error.show { display: block; }
+
+  /* ---------- success state ---------- */
+  .success-card {
+    background: var(--paper);
+    border-radius: var(--radius);
+    padding: 36px 26px;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(27,36,48,0.06);
+  }
+  .success-card .check {
+    width: 52px; height: 52px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: var(--jade-soft);
+    color: var(--jade);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+  }
+  .success-card h2 { font-size: 18px; margin: 0 0 6px; }
+  .success-amount {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--jade);
+    margin: 14px 0 4px;
+  }
+  .success-detail { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 26px; }
+  .btn-again {
+    background: var(--jade); color: white;
+    border: none; padding: 13px 26px;
+    border-radius: 12px; font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-size: 14.5px; font-weight: 600; cursor: pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
 </head>
 <body>
 
-  <div class="ticket">
-    <!-- หน้าจอ Loading ปิดทับก่อนโหลดข้อมูลเสร็จ -->
-    <div id="loadingOverlay">
-      <div class="spinner"></div>
-      <div id="loadingText" style="font-size: 14px; color: #555;">กำลังเตรียมตั๋ว...</div>
-    </div>
-
-    <div class="header">
-      <img id="profileImg" class="profile-img" src="" alt="Profile">
-      <div class="profile-info">
-        <p class="profile-title">ผู้จ่ายเงิน (Payer)</p>
-        <p id="profileName" class="profile-name">กำลังโหลด...</p>
-      </div>
-      <div id="tripCodeBadge" style="font-family: 'IBM Plex Mono'; font-size: 12px; color: #888; text-align: right;"></div>
-    </div>
-
-    <div class="perforation"></div>
-
-    <div class="form-body">
-      <!-- 1. ยอดเงิน -->
-      <div class="form-group">
-        <label class="label">ยอดเงิน (Amount)</label>
-        <div class="amount-group">
-          <input type="number" id="amountInput" class="amount-input" placeholder="0.00" inputmode="decimal">
-          <button type="button" id="currencyBtn" class="currency-btn currency-cny" data-currency="CNY">CNY</button>
-        </div>
-      </div>
-
-      <!-- 2. หมวดหมู่ -->
-      <div class="form-group">
-        <label class="label">หมวดหมู่ (Category)</label>
-        <input type="text" id="categoryInput" list="categories" placeholder="เลือกหรือพิมพ์หมวดหมู่">
-        <datalist id="categories">
-          <option value="อาหาร">
-          <option value="ตั๋วเครื่องบิน">
-          <option value="โรงแรม">
-          <option value="เดินทาง (แท็กซี่/รถไฟ)">
-          <option value="ค่าเข้าสถานที่">
-          <option value="ของฝาก/ช้อปปิ้ง">
-          <option value="ค่าซิม/เน็ต">
-          <option value="ค่าประกันเดินทาง">
-        </datalist>
-      </div>
-
-      <!-- 3. รูปแบบการหาร -->
-      <div class="form-group">
-        <label class="label">รูปแบบการหาร (Split Type)</label>
-        <div class="split-options">
-          <label class="radio-label selected">
-            <input type="radio" name="splitType" value="equal" checked> 
-            <span>หารกองกลาง</span>
-            <span class="split-desc">หารทุกคน</span>
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="splitType" value="none"> 
-            <span>จ่ายส่วนตัว</span>
-            <span class="split-desc">ไม่หาร</span>
-          </label>
-          <label class="radio-label">
-            <input type="radio" name="splitType" value="custom"> 
-            <span>ระบุคนหารเอง</span>
-            <span class="split-desc">Custom</span>
-          </label>
-        </div>
-
-        <!-- รายชื่อลูกทริป (ซ่อนไว้ โชว์เมื่อเลือก Custom) -->
-        <div id="memberBox">
-          <div style="font-size: 12px; color: #666; margin-bottom: 8px;">ติ๊กเลือกคนที่จะหารบิลก้อนนี้ด้วย:</div>
-          <div id="memberCheckboxes"></div>
-        </div>
-      </div>
-
-      <!-- 4. หมายเหตุ -->
-      <div class="form-group">
-        <label class="label">หมายเหตุ (Note - ไม่บังคับ)</label>
-        <input type="text" id="noteInput" placeholder="เช่น ค่าแท็กซี่ไปเดอะบันด์">
-      </div>
-
-      <!-- ปุ่ม Action -->
-      <div class="actions">
-        <button type="button" class="btn btn-cancel" id="cancelBtn">ยกเลิก</button>
-        <button type="button" class="btn btn-save" id="saveBtn">บันทึกบิล</button>
-      </div>
-    </div>
+<div class="screen" id="screen">
+  <div class="center-state" id="loadingState">
+    <div class="spinner"></div>
+    <div id="loadingText">กำลังเชื่อมต่อ...</div>
   </div>
+</div>
 
-  <script>
-    // --- ตั้งค่าระบบ ---
-    const LIFF_ID = "2011511627-13L1YyxX";
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzp2u97HyICryTxHwEVdAdxk5dYt8wvfiCUSOf1LP5JC6q6e3Y1v6Yx8FzlNQ3tyITE/exec";
+<script>
+  const LIFF_ID = "2011511627-13L1YyxX";
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbzp2u97HyICryTxHwEVdAdxk5dYt8wvfiCUSOf1LP5JC6q6e3Y1v6Yx8FzlNQ3tyITE/exec";
 
-    let myUid = null;
-    let tripMembers = [];
+  const CATEGORY_SUGGESTIONS = [
+    "อาหาร",
+    "ตั๋วเครื่องบิน",
+    "โรงแรม",
+    "ค่าเดินทางในเมือง",
+    "ค่าเข้าสถานที่/ตั๋วกิจกรรม",
+    "ของฝาก/ช้อปปิ้ง",
+    "ค่าซิม/เน็ต",
+    "ค่าประกันเดินทาง",
+    "อื่นๆ"
+  ];
 
-    // --- อ้างอิง UI Elements ---
-    const overlay = document.getElementById("loadingOverlay");
-    const loadingText = document.getElementById("loadingText");
-    const currencyBtn = document.getElementById("currencyBtn");
-    const radioLabels = document.querySelectorAll(".radio-label");
-    const splitRadios = document.getElementsByName("splitType");
-    const memberBox = document.getElementById("memberBox");
-    const memberCheckboxes = document.getElementById("memberCheckboxes");
-    
-    // --- ฟังก์ชันหลักตอนเปิดหน้าเว็บ ---
-    async function main() {
-      try {
-        await liff.init({ liffId: LIFF_ID });
-        
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
+  let myUid = null;
+  let myName = "";
+  let myPicture = "";
+  let tripCode = null;
+  let tripName = "";
+  let phase = "on-trip";
+  let tripMembers = [];
+  let splitType = "equal";
+  let currency = "CNY";
 
-        const profile = await liff.getProfile();
-        myUid = profile.userId;
-        document.getElementById("profileName").innerText = profile.displayName;
-        if(profile.pictureUrl) {
-          document.getElementById("profileImg").src = profile.pictureUrl;
-        }
+  const screen = document.getElementById("screen");
 
-        loadingText.innerText = "กำลังดึงข้อมูลทริป...";
-        await fetchTripContext();
+  async function main() {
+    try {
+      await liff.init({ liffId: LIFF_ID });
 
-      } catch (err) {
-        showError("โหลดข้อมูลล้มเหลว: " + err.message);
+      if (!liff.isLoggedIn()) {
+        document.getElementById("loadingText").textContent = "กำลังไปหน้า Login...";
+        liff.login();
+        return;
       }
-    }
 
-    // --- ดึงข้อมูลทริปจาก GAS ---
-    async function fetchTripContext() {
-      try {
-        const res = await fetch(GAS_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ action: "get_trip_context", uid: myUid })
+      const profile = await liff.getProfile();
+      myUid = profile.userId;
+      myName = profile.displayName || "";
+      myPicture = profile.pictureUrl || "";
+
+      const ctx = await callGas({ action: "get_trip_context", uid: myUid });
+
+      if (ctx.status !== "ok") {
+        renderNoTrip(ctx.message);
+        return;
+      }
+
+      tripCode = ctx.tripCode;
+      tripName = ctx.tripName;
+      phase = ctx.phase || "on-trip";
+      tripMembers = ctx.members || [];
+      currency = phase === "pre-trip" ? "THB" : "CNY";
+
+      renderForm();
+    } catch (err) {
+      renderFatalError(err.message);
+    }
+  }
+
+  async function callGas(payload) {
+    const res = await fetch(GAS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  }
+
+  function renderNoTrip(message) {
+    screen.innerHTML = `
+      <div class="error-card">
+        <div class="icon">🎫</div>
+        <h2>ยังไม่ได้เข้าร่วมทริป</h2>
+        <p>กลับไปที่แชท TATA แล้วพิมพ์ <code>JOIN &lt;รหัสทริป&gt;</code> ก่อนครับ เช่น <code>JOIN CN-OCT26</code> จากนั้นค่อยเปิดฟอร์มนี้อีกครั้ง</p>
+        <button class="btn-again" id="retryBtn">ลองใหม่อีกครั้ง</button>
+      </div>
+    `;
+    document.getElementById("retryBtn").addEventListener("click", main);
+  }
+
+  function renderFatalError(message) {
+    screen.innerHTML = `
+      <div class="error-card">
+        <div class="icon">⚠️</div>
+        <h2>เชื่อมต่อไม่สำเร็จ</h2>
+        <p>${escapeHtml(message || "เกิดข้อผิดพลาดบางอย่าง")}</p>
+        <button class="btn-again" id="retryBtn">ลองใหม่อีกครั้ง</button>
+      </div>
+    `;
+    document.getElementById("retryBtn").addEventListener("click", main);
+  }
+
+  function initials(name) {
+    return (name || "?").trim().charAt(0).toUpperCase();
+  }
+
+  function renderForm() {
+    const avatarInner = myPicture
+      ? `<img src="${myPicture}" alt="">`
+      : initials(myName);
+
+    const phaseLabel = phase === "pre-trip" ? "ก่อนทริป" : "ระหว่างทริป";
+    const phaseClass = phase === "pre-trip" ? "pre" : "on";
+
+    const categoryOptions = CATEGORY_SUGGESTIONS
+      .map(c => `<option value="${escapeHtml(c)}">`).join("");
+
+    const memberRows = tripMembers.map(m => {
+      const isMe = m.uid === myUid;
+      return `
+        <label class="member-row">
+          <input type="checkbox" class="member-check" value="${escapeHtml(m.uid)}" checked>
+          <span>${escapeHtml(m.name)}</span>
+          ${isMe ? '<span class="payer-badge">คุณ / ผู้จ่าย</span>' : ''}
+        </label>`;
+    }).join("");
+
+    screen.innerHTML = `
+      <div class="ticket">
+        <div class="ticket-header">
+          <div class="avatar">${avatarInner}</div>
+          <div>
+            <div class="who-name">${escapeHtml(myName)}</div>
+            <div class="who-trip">
+              ${escapeHtml(tripName)}
+              <span class="phase-tag ${phaseClass}">${phaseLabel}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider-punched"></div>
+
+        <div class="amount-section">
+          <div class="amount-label">ยอดที่จ่าย</div>
+          <div class="amount-row">
+            <span class="amount-symbol" id="currencySymbol">¥</span>
+            <input id="amountInput" class="mono" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01">
+          </div>
+          <div class="currency-toggle" role="group" aria-label="เลือกสกุลเงิน">
+            <button type="button" data-cur="CNY" aria-pressed="${currency === 'CNY'}">หยวน</button>
+            <button type="button" data-cur="THB" aria-pressed="${currency === 'THB'}">บาท</button>
+          </div>
+        </div>
+
+        <div class="divider-plain"></div>
+
+        <div class="field">
+          <label class="field-label" for="categoryInput">หมวดหมู่</label>
+          <input id="categoryInput" class="text-input" type="text" list="categoryList" placeholder="เช่น อาหาร, โรงแรม">
+          <datalist id="categoryList">${categoryOptions}</datalist>
+        </div>
+
+        <div class="field">
+          <label class="field-label">วิธีหาร</label>
+          <div class="segmented" role="group" aria-label="วิธีหารบิล">
+            <button type="button" data-split="equal" aria-pressed="true">หารเท่ากัน</button>
+            <button type="button" data-split="none" aria-pressed="false">ไม่หาร</button>
+            <button type="button" data-split="custom" aria-pressed="false">กำหนดเอง</button>
+          </div>
+          <div class="member-list" id="memberList">${memberRows}</div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="noteInput">โน้ต (ถ้ามี)</label>
+          <input id="noteInput" class="text-input" type="text" placeholder="รายละเอียดเพิ่มเติม">
+        </div>
+
+        <div class="inline-error" id="formError"></div>
+
+        <div class="actions">
+          <button class="btn btn-cancel" id="cancelBtn">ยกเลิก</button>
+          <button class="btn btn-save" id="saveBtn">บันทึก</button>
+        </div>
+      </div>
+    `;
+
+    bindFormEvents();
+  }
+
+  function bindFormEvents() {
+    document.querySelectorAll(".currency-toggle button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        currency = btn.dataset.cur;
+        document.querySelectorAll(".currency-toggle button").forEach(b => {
+          b.setAttribute("aria-pressed", b === btn ? "true" : "false");
         });
-        const data = await res.json();
-
-        if (data.status === "ok") {
-          document.getElementById("tripCodeBadge").innerText = data.tripCode;
-          tripMembers = data.members;
-          
-          // Auto-set Currency ตาม Phase
-          if (data.phase === 'pre-trip') {
-            toggleCurrency('THB');
-          } else {
-            toggleCurrency('CNY');
-          }
-
-          renderMemberCheckboxes();
-          overlay.style.display = "none"; // ปิดหน้า Loading
-        } else {
-          showError("ข้อผิดพลาด: " + (data.message === "no_trip_joined" ? "คุณยังไม่ได้พิมพ์ JOIN ทริปในแชท" : data.message));
-        }
-      } catch (err) {
-        showError("เชื่อมต่อฐานข้อมูลล้มเหลว");
-      }
-    }
-
-    // --- วาด Checkbox สมาชิก ---
-    function renderMemberCheckboxes() {
-      memberCheckboxes.innerHTML = "";
-      tripMembers.forEach(m => {
-        const isMe = m.uid === myUid;
-        const label = document.createElement("label");
-        label.className = "checkbox-label";
-        label.innerHTML = `
-          <input type="checkbox" value="${m.uid}" checked> 
-          ${m.name} ${isMe ? "(คุณ/ผู้จ่าย)" : ""}
-        `;
-        memberCheckboxes.appendChild(label);
+        document.getElementById("currencySymbol").textContent = currency === "CNY" ? "¥" : "฿";
       });
-    }
-
-    // --- UI Interactions ---
-
-    // 1. สลับสกุลเงิน
-    currencyBtn.addEventListener("click", () => {
-      const current = currencyBtn.getAttribute("data-currency");
-      toggleCurrency(current === "CNY" ? "THB" : "CNY");
     });
+    document.getElementById("currencySymbol").textContent = currency === "CNY" ? "¥" : "฿";
 
-    function toggleCurrency(target) {
-      if (target === "THB") {
-        currencyBtn.innerText = "THB";
-        currencyBtn.setAttribute("data-currency", "THB");
-        currencyBtn.className = "currency-btn currency-thb";
-      } else {
-        currencyBtn.innerText = "CNY";
-        currencyBtn.setAttribute("data-currency", "CNY");
-        currencyBtn.className = "currency-btn currency-cny";
-      }
-    }
-
-    // 2. ไฮไลต์ปุ่ม Radio และโชว์/ซ่อน Checkbox
-    splitRadios.forEach(radio => {
-      radio.addEventListener("change", function() {
-        radioLabels.forEach(lbl => lbl.classList.remove("selected"));
-        this.closest(".radio-label").classList.add("selected");
-        
-        if (this.value === "custom") {
-          memberBox.style.display = "block";
+    document.querySelectorAll(".segmented button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        splitType = btn.dataset.split;
+        document.querySelectorAll(".segmented button").forEach(b => {
+          b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+        });
+        const list = document.getElementById("memberList");
+        if (splitType === "custom") {
+          list.classList.add("open");
         } else {
-          memberBox.style.display = "none";
+          list.classList.remove("open");
         }
       });
     });
 
-    // 3. ปิดหน้าจอ
     document.getElementById("cancelBtn").addEventListener("click", () => {
-      liff.closeWindow();
+      if (liff.isInClient && liff.isInClient()) {
+        liff.closeWindow();
+      } else {
+        renderForm();
+      }
     });
 
-    // 4. กดบันทึกบิล (Submit)
-    document.getElementById("saveBtn").addEventListener("click", async () => {
-      const amount = Number(document.getElementById("amountInput").value);
-      const currency = currencyBtn.getAttribute("data-currency");
-      const category = document.getElementById("categoryInput").value.trim();
-      const note = document.getElementById("noteInput").value.trim();
-      
-      const splitType = document.querySelector('input[name="splitType"]:checked').value;
-      const checkedMembers = Array.from(document.querySelectorAll("#memberCheckboxes input:checked")).map(el => el.value);
+    document.getElementById("saveBtn").addEventListener("click", handleSave);
+  }
 
-      // Validate เบื้องต้น
-      if (!amount || amount <= 0) {
-        alert("กรุณากรอกยอดเงินให้ถูกต้องครับ");
+  function showFormError(msg) {
+    const el = document.getElementById("formError");
+    el.textContent = msg;
+    el.classList.add("show");
+  }
+  function clearFormError() {
+    const el = document.getElementById("formError");
+    el.classList.remove("show");
+    el.textContent = "";
+  }
+
+  async function handleSave() {
+    clearFormError();
+
+    const amount = Number(document.getElementById("amountInput").value);
+    const category = document.getElementById("categoryInput").value.trim();
+    const note = document.getElementById("noteInput").value.trim();
+
+    if (!amount || amount <= 0) {
+      showFormError("กรุณากรอกยอดเงินให้ถูกต้อง");
+      return;
+    }
+    if (!category) {
+      showFormError("กรุณากรอกหมวดหมู่");
+      return;
+    }
+
+    let splitMembers = [];
+    if (splitType === "custom") {
+      splitMembers = Array.from(document.querySelectorAll(".member-check:checked"))
+        .map(el => el.value);
+      if (splitMembers.length === 0) {
+        showFormError("กรุณาติ๊กอย่างน้อย 1 คนสำหรับหารแบบกำหนดเอง");
         return;
       }
-      if (!category) {
-        alert("กรุณาระบุหมวดหมู่ค่าใช้จ่ายด้วยครับ");
-        return;
-      }
-      if (splitType === "custom" && checkedMembers.length === 0) {
-        alert("กรุณาเลือกคนหารอย่างน้อย 1 คนครับ");
-        return;
-      }
+    }
 
-      // เปิดหน้า Loading ตอนบันทึก
-      loadingText.innerText = "กำลังบันทึกบิล...";
-      overlay.style.display = "flex";
+    const saveBtn = document.getElementById("saveBtn");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "กำลังบันทึก...";
 
+    try {
       const payload = {
         action: "liff_expense",
         uid: myUid,
@@ -508,36 +649,47 @@
         currency: currency,
         category: category,
         note: note,
-        splitType: splitType,
-        splitMembers: checkedMembers
+        splitType: splitType
       };
+      if (splitType === "custom") payload.splitMembers = splitMembers;
 
-      try {
-        const res = await fetch(GAS_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
+      const data = await callGas(payload);
 
-        if (data.status === "ok") {
-          alert("บันทึกรายจ่ายสำเร็จ!");
-          liff.closeWindow();
-        } else {
-          showError("บันทึกไม่สำเร็จ: " + data.message);
-        }
-      } catch (err) {
-        showError("เกิดข้อผิดพลาดในการส่งข้อมูล");
+      if (data.status === "ok") {
+        renderSuccess(amount, currency, category);
+      } else {
+        showFormError("บันทึกไม่สำเร็จ: " + data.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = "บันทึก";
       }
-    });
-
-    function showError(msg) {
-      alert(msg);
-      overlay.style.display = "none";
+    } catch (err) {
+      showFormError("เชื่อมต่อไม่สำเร็จ: " + err.message);
+      saveBtn.disabled = false;
+      saveBtn.textContent = "บันทึก";
     }
+  }
 
-    // เริ่มทำงานเมื่อเปิดหน้า
-    main();
-  </script>
+  function renderSuccess(amount, cur, category) {
+    const symbol = cur === "CNY" ? "¥" : "฿";
+    screen.innerHTML = `
+      <div class="success-card">
+        <div class="check">✓</div>
+        <h2>บันทึกแล้ว</h2>
+        <div class="success-amount mono">${symbol}${amount.toFixed(2)}</div>
+        <div class="success-detail">${escapeHtml(category)}</div>
+        <button class="btn-again" id="againBtn">บันทึกอีกรายการ</button>
+      </div>
+    `;
+    document.getElementById("againBtn").addEventListener("click", renderForm);
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str == null ? "" : String(str);
+    return div.innerHTML;
+  }
+
+  main();
+</script>
 </body>
 </html>
