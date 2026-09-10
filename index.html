@@ -478,6 +478,30 @@
     });
     return res.json();
   }
+  // ==== TEMP TEST BUTTONS - ลบทิ้งก่อน deploy หน้าจริง ====
+  async function testGetExpenseList() {
+    const scope = prompt("scope? (all/mine)", "all");
+    const res = await callGas({ action: "get_expense_list", uid: myUid, scope: scope });
+    console.log(res);
+    alert(JSON.stringify(res, null, 2));
+  }
+
+  async function testUpdateExpense() {
+    const expenseId = prompt("ExpenseID ที่จะแก้?");
+    const category = prompt("หมวดใหม่?", "ทดสอบลบ (แก้แล้ว)");
+    const note = prompt("โน้ตใหม่?", "");
+    const res = await callGas({ action: "update_expense", uid: myUid, expenseId, category, note });
+    console.log(res);
+    alert(JSON.stringify(res, null, 2));
+  }
+
+  async function testDeleteExpense() {
+    const expenseId = prompt("ExpenseID ที่จะลบ? (ลบแล้วกู้คืนไม่ได้)");
+    if (!confirm("แน่ใจนะว่าจะลบ " + expenseId + " ?")) return;
+    const res = await callGas({ action: "delete_expense", uid: myUid, expenseId });
+    console.log(res);
+    alert(JSON.stringify(res, null, 2));
+  }
 
   function renderNoTrip(message) {
     screen.innerHTML = `
