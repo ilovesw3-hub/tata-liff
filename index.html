@@ -234,6 +234,34 @@
   }
   .text-input:focus { border-color: var(--jade); }
 
+  .category-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .chip {
+    border: 1.5px solid var(--rule);
+    background: #FEFCF8;
+    color: var(--ink-soft);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 13px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .chip[aria-pressed="true"] {
+    background: var(--jade);
+    border-color: var(--jade);
+    color: white;
+  }
+  .chip.chip-other[aria-pressed="true"] {
+    background: var(--amber);
+    border-color: var(--amber);
+  }
+
   .segmented {
     display: flex;
     gap: 8px;
@@ -487,8 +515,10 @@
     const phaseLabel = phase === "pre-trip" ? "ก่อนทริป" : "ระหว่างทริป";
     const phaseClass = phase === "pre-trip" ? "pre" : "on";
 
-    const categoryOptions = CATEGORY_SUGGESTIONS
-      .map(c => `<option value="${escapeHtml(c)}">`).join("");
+    const categoryChips = CATEGORY_SUGGESTIONS.map(c => {
+      const isOther = c === "อื่นๆ";
+      return `<button type="button" class="chip${isOther ? ' chip-other' : ''}" data-cat="${escapeHtml(c)}" data-other="${isOther}" aria-pressed="false">${escapeHtml(c)}</button>`;
+    }).join("");
 
     const memberRows = tripMembers.map(m => {
       const isMe = m.uid === myUid;
@@ -531,8 +561,8 @@
 
         <div class="field">
           <label class="field-label" for="categoryInput">หมวดหมู่</label>
-          <input id="categoryInput" class="text-input" type="text" list="categoryList" placeholder="เช่น อาหาร, โรงแรม">
-          <datalist id="categoryList">${categoryOptions}</datalist>
+          <input id="categoryInput" class="text-input" type="text" placeholder="เลือกด้านล่าง หรือพิมพ์เอง">
+          <div class="category-chips" id="categoryChips">${categoryChips}</div>
         </div>
 
         <div class="field">
@@ -589,6 +619,25 @@
       });
     });
 
+    document.querySelectorAll(".chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        const input = document.getElementById("categoryInput");
+        if (chip.dataset.other === "true") {
+          input.value = "";
+          input.placeholder = "พิมพ์หมวดหมู่ของคุณ";
+          input.focus();
+          setChipSelection(null, true);
+        } else {
+          input.value = chip.dataset.cat;
+          setChipSelection(chip.dataset.cat, false);
+        }
+      });
+    });
+
+    document.getElementById("categoryInput").addEventListener("input", (e) => {
+      setChipSelection(e.target.value, false);
+    });
+
     document.getElementById("cancelBtn").addEventListener("click", () => {
       if (liff.isInClient && liff.isInClient()) {
         liff.closeWindow();
@@ -598,6 +647,15 @@
     });
 
     document.getElementById("saveBtn").addEventListener("click", handleSave);
+  }
+
+  function setChipSelection(matchValue, otherSelected) {
+    document.querySelectorAll(".chip").forEach(chip => {
+      const isMatch = chip.dataset.other === "true"
+        ? !!otherSelected
+        : chip.dataset.cat === matchValue;
+      chip.setAttribute("aria-pressed", isMatch ? "true" : "false");
+    });
   }
 
   function showFormError(msg) {
