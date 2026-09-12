@@ -465,6 +465,7 @@
   let tripMembers = [];
   let splitType = "equal";
   let currency = "CNY";
+  let selectedPayerUid = null; // ใครเป็นคนจ่ายจริง - default เป็นตัวเอง ตั้งค่าใน main() หลังรู้ myUid
 
   // ---- state ใหม่สำหรับหน้า "สรุปยอด" ----
   let activeTopTab = "form";      // "form" | "summary"
@@ -505,6 +506,7 @@
       phase = ctx.phase || "on-trip";
       tripMembers = ctx.members || [];
       currency = phase === "pre-trip" ? "THB" : "CNY";
+      selectedPayerUid = myUid;
 
       renderApp();
     } catch (err) {
@@ -599,6 +601,11 @@
       return `<button type="button" class="chip${isOther ? ' chip-other' : ''}" data-cat="${escapeHtml(c)}" data-other="${isOther}" aria-pressed="false">${escapeHtml(c)}</button>`;
     }).join("");
 
+    const payerChips = tripMembers.map(m => {
+      const label = m.uid === myUid ? escapeHtml(m.name) + " (คุณ)" : escapeHtml(m.name);
+      return `<button type="button" class="chip" data-payer="${escapeHtml(m.uid)}" aria-pressed="${m.uid === selectedPayerUid}">${label}</button>`;
+    }).join("");
+
     const memberRows = tripMembers.map(m => {
       const isMe = m.uid === myUid;
       return `
@@ -637,6 +644,11 @@
         </div>
 
         <div class="divider-plain"></div>
+
+        <div class="field">
+          <label class="field-label">จ่ายโดย</label>
+          <div class="category-chips" id="payerChips">${payerChips}</div>
+        </div>
 
         <div class="field">
           <label class="field-label" for="categoryInput">หมวดหมู่</label>
@@ -693,6 +705,11 @@
         ${contentHtml}
       </div>
     `;
+  }
+
+  function memberNameByUid(uid) {
+    const m = tripMembers.find(x => x.uid === uid);
+    return m ? m.name : "Unknown";
   }
 
   function loadingRow(text) {
@@ -789,7 +806,7 @@
     }
 
     const rows = items.map(item => {
-      const canEdit = isAdmin || item.paidByUid === myUid;
+      const canEdit = isAdmin || item.paidByUid === myUid || item.recordedByUid === myUid;
       const isExpanded = expandedExpenseId === item.id;
       const chevron = isExpanded ? "⌄" : "›";
 
@@ -827,10 +844,14 @@
         }
       }
 
+      const recordedNote = (item.recordedByUid && item.recordedByUid !== item.paidByUid)
+        ? ` <span style="color:var(--ink-soft); font-weight:400;">(บันทึกโดย ${escapeHtml(memberNameByUid(item.recordedByUid))})</span>`
+        : "";
+
       return `
         <div class="expense-row" style="border-bottom:1px solid var(--rule);">
           <div class="expense-row-head" data-toggle-expense="${escapeHtml(item.id)}" style="display:flex; justify-content:space-between; align-items:center; padding:12px 4px; cursor:pointer;">
-            <span style="font-size:13.5px; color:var(--ink);"><b>${escapeHtml(item.category)}</b> · ${escapeHtml(item.paidByName)}</span>
+            <span style="font-size:13.5px; color:var(--ink);"><b>${escapeHtml(item.category)}</b> · ${escapeHtml(item.paidByName)}${recordedNote}</span>
             <span style="display:flex; align-items:center; gap:8px;">
               <span class="mono" style="font-size:13.5px; font-weight:600;">฿${Number(item.amountThb).toFixed(2)}</span>
               <span style="color:var(--ink-soft); font-size:14px;">${chevron}</span>
@@ -1012,7 +1033,16 @@
       });
     });
 
-    document.querySelectorAll(".chip").forEach(chip => {
+    document.querySelectorAll("[data-payer]").forEach(chip => {
+      chip.addEventListener("click", () => {
+        selectedPayerUid = chip.dataset.payer;
+        document.querySelectorAll("[data-payer]").forEach(c => {
+          c.setAttribute("aria-pressed", c === chip ? "true" : "false");
+        });
+      });
+    });
+
+    document.querySelectorAll("[data-cat]").forEach(chip => {
       chip.addEventListener("click", () => {
         const input = document.getElementById("categoryInput");
         if (chip.dataset.other === "true") {
@@ -1043,7 +1073,7 @@
   }
 
   function setChipSelection(matchValue, otherSelected) {
-    document.querySelectorAll(".chip").forEach(chip => {
+    document.querySelectorAll("[data-cat]").forEach(chip => {
       const isMatch = chip.dataset.other === "true"
         ? !!otherSelected
         : chip.dataset.cat === matchValue;
@@ -1096,6 +1126,7 @@
       const payload = {
         action: "liff_expense",
         uid: myUid,
+        payerUid: selectedPayerUid || myUid,
         amount: amount,
         currency: currency,
         category: category,
@@ -1109,6 +1140,7 @@
       if (data.status === "ok") {
         summaryData = null;
         expenseCache = { all: null, mine: null };
+        selectedPayerUid = myUid;
         renderSuccess(amount, currency, category);
       } else {
         showFormError("บันทึกไม่สำเร็จ: " + data.message);
