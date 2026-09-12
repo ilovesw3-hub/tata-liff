@@ -471,6 +471,7 @@
   let activeTopTab = "form";      // "form" | "summary"
   let activeSubTab = "balance";   // "balance" | "settle" | "list"
   let listScope = "all";          // "all" | "mine"
+  let settleScope = "mine";       // "mine" | "all" - เฉพาะ admin ที่สลับดู "all" ได้
   let isAdmin = false;
   let summaryData = null;         // { balance, transfers } - cache ไว้ ไม่ยิงซ้ำทุกครั้งที่สลับแท็บ
   let expenseCache = { all: null, mine: null };
@@ -730,9 +731,12 @@
   async function fetchSummaryData() {
     try {
       const res = await callGas({ action: "get_settle_up", uid: myUid });
-      summaryData = res.status === "ok"
-        ? { balance: res.balance || {}, transfers: res.transfers || [] }
-        : { balance: {}, transfers: [], error: res.message };
+      if (res.status === "ok") {
+        isAdmin = !!res.isAdmin;
+        summaryData = { balance: res.balance || {}, transfers: res.transfers || [] };
+      } else {
+        summaryData = { balance: {}, transfers: [], error: res.message };
+      }
     } catch (err) {
       summaryData = { balance: {}, transfers: [], error: err.message };
     }
@@ -776,16 +780,51 @@
 
   function settleContentHtml() {
     if (summaryData === null) return loadingRow("กำลังโหลด...");
-    const transfers = summaryData.transfers;
-    if (transfers.length === 0) return loadingRow("ยอดลงตัวแล้ว ไม่ต้องโอนเพิ่มครับ");
 
-    const rows = transfers.map(t => `
-      <div class="member-row" style="justify-content:space-between;">
-        <span><b>${escapeHtml(t.fromName)}</b> <span style="color:var(--amber);">→</span> <b>${escapeHtml(t.toName)}</b></span>
-        <span class="mono" style="font-weight:600; color:var(--amber);">฿${t.amountThb.toFixed(2)}</span>
-      </div>`).join("");
+    const allTransfers = summaryData.transfers;
+    const effectiveScope = isAdmin ? settleScope : "mine";
 
-    return `<div class="field">${rows}</div>`;
+    const toggleHtml = isAdmin ? `
+      <div class="scope-toggle" role="group" aria-label="ขอบเขตแนะนำโอน" style="margin-bottom:14px;">
+        <button type="button" data-settle-scope="mine" aria-pressed="${effectiveScope === 'mine'}">ของฉัน</button>
+        <button type="button" data-settle-scope="all" aria-pressed="${effectiveScope === 'all'}">ทั้งหมด</button>
+      </div>
+    ` : "";
+
+    const transfers = effectiveScope === "mine"
+      ? allTransfers.filter(t => t.fromUid === myUid || t.toUid === myUid)
+      : allTransfers;
+
+    if (transfers.length === 0) {
+      const emptyMsg = effectiveScope === "mine"
+        ? "คุณไม่มีอะไรต้องโอนตอนนี้ครับ"
+        : "ยอดลงตัวแล้ว ไม่ต้องโอนเพิ่มครับ";
+      return `<div class="field">${toggleHtml}<div style="text-align:center; color:var(--ink-soft); padding:18px 0;">${emptyMsg}</div></div>`;
+    }
+
+    const rows = transfers.map(t => {
+      if (effectiveScope === "mine" && t.fromUid === myUid) {
+        return `
+          <div class="member-row" style="justify-content:space-between;">
+            <span>คุณโอนให้ <b>${escapeHtml(t.toName)}</b></span>
+            <span class="mono" style="font-weight:600; color:var(--red);">฿${t.amountThb.toFixed(2)}</span>
+          </div>`;
+      }
+      if (effectiveScope === "mine" && t.toUid === myUid) {
+        return `
+          <div class="member-row" style="justify-content:space-between;">
+            <span><b>${escapeHtml(t.fromName)}</b> โอนให้คุณ</span>
+            <span class="mono" style="font-weight:600; color:var(--jade);">฿${t.amountThb.toFixed(2)}</span>
+          </div>`;
+      }
+      return `
+        <div class="member-row" style="justify-content:space-between;">
+          <span><b>${escapeHtml(t.fromName)}</b> <span style="color:var(--amber);">→</span> <b>${escapeHtml(t.toName)}</b></span>
+          <span class="mono" style="font-weight:600; color:var(--amber);">฿${t.amountThb.toFixed(2)}</span>
+        </div>`;
+    }).join("");
+
+    return `<div class="field">${toggleHtml}${rows}</div>`;
   }
 
   function listContentHtml() {
@@ -871,6 +910,16 @@
         renderApp();
       });
     });
+
+    if (activeSubTab === "settle") {
+      document.querySelectorAll("[data-settle-scope]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          settleScope = btn.dataset.settleScope;
+          renderApp();
+        });
+      });
+      return;
+    }
 
     if (activeSubTab !== "list") return;
 
