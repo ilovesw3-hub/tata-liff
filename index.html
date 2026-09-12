@@ -607,12 +607,11 @@
     }).join("");
 
     const memberRows = tripMembers.map(m => {
-      const isMe = m.uid === myUid;
       return `
         <label class="member-row">
           <input type="checkbox" class="member-check" value="${escapeHtml(m.uid)}" checked>
           <span>${escapeHtml(m.name)}</span>
-          ${isMe ? '<span class="payer-badge">คุณ / ผู้จ่าย</span>' : ''}
+          <span class="payer-badge" data-badge-slot="${escapeHtml(m.uid)}" style="display:none;"></span>
         </label>`;
     }).join("");
 
@@ -1039,8 +1038,10 @@
         document.querySelectorAll("[data-payer]").forEach(c => {
           c.setAttribute("aria-pressed", c === chip ? "true" : "false");
         });
+        updatePayerBadges();
       });
     });
+    updatePayerBadges();
 
     document.querySelectorAll("[data-cat]").forEach(chip => {
       chip.addEventListener("click", () => {
@@ -1070,6 +1071,20 @@
     });
 
     document.getElementById("saveBtn").addEventListener("click", handleSave);
+  }
+
+  function updatePayerBadges() {
+    document.querySelectorAll("[data-badge-slot]").forEach(el => {
+      const uid = el.dataset.badgeSlot;
+      const isMe = uid === myUid;
+      const isPayer = uid === selectedPayerUid;
+      let text = "";
+      if (isPayer && isMe) text = "คุณ / ผู้จ่าย";
+      else if (isPayer) text = "ผู้จ่าย";
+      else if (isMe) text = "คุณ";
+      el.textContent = text;
+      el.style.display = text ? "inline-block" : "none";
+    });
   }
 
   function setChipSelection(matchValue, otherSelected) {
