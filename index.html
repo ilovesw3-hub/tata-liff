@@ -503,6 +503,12 @@
     alert(JSON.stringify(res, null, 2));
   }
 
+  async function testGetSettleUp() {
+    const res = await callGas({ action: "get_settle_up", uid: myUid });
+    console.log(res);
+    alert(JSON.stringify(res, null, 2));
+  }
+  
   function renderNoTrip(message) {
     screen.innerHTML = `
       <div class="error-card">
@@ -615,6 +621,7 @@
           <button type="button" onclick="testGetExpenseList()">Test: get_expense_list</button>
           <button type="button" onclick="testUpdateExpense()">Test: update_expense</button>
           <button type="button" onclick="testDeleteExpense()">Test: delete_expense</button>
+          <button type="button" onclick="testGetSettleUp()">Test: get_settle_up</button>
         </div>
       </div>
     `;
