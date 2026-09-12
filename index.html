@@ -397,6 +397,38 @@
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
+
+  /* ---------- top-level nav (บันทึก / สรุปยอด) ---------- */
+  .top-nav { margin: 0 0 14px; }
+
+  /* ---------- summary: scope toggle (ทั้งหมด / จ่ายเอง) ---------- */
+  .scope-toggle {
+    display: flex;
+    background: #F1ECE1;
+    border-radius: 30px;
+    padding: 3px;
+  }
+  .scope-toggle button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    border-radius: 26px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .scope-toggle button[aria-pressed="true"] {
+    background: var(--jade);
+    color: white;
+  }
+
+  /* ---------- summary: expense list rows ---------- */
+  .expense-row:last-child { border-bottom: none !important; }
+  .expense-row-head:active { opacity: 0.7; }
 </style>
 </head>
 <body>
@@ -434,6 +466,16 @@
   let splitType = "equal";
   let currency = "CNY";
 
+  // ---- state ใหม่สำหรับหน้า "สรุปยอด" ----
+  let activeTopTab = "form";      // "form" | "summary"
+  let activeSubTab = "balance";   // "balance" | "settle" | "list"
+  let listScope = "all";          // "all" | "mine"
+  let isAdmin = false;
+  let summaryData = null;         // { balance, transfers } - cache ไว้ ไม่ยิงซ้ำทุกครั้งที่สลับแท็บ
+  let expenseCache = { all: null, mine: null };
+  let expandedExpenseId = null;
+  let editDraft = {};             // แก้ไขชั่วคราวต่อรายการ ก่อนกดบันทึก { [expenseId]: {category, note} }
+
   const screen = document.getElementById("screen");
 
   async function main() {
@@ -464,7 +506,7 @@
       tripMembers = ctx.members || [];
       currency = phase === "pre-trip" ? "THB" : "CNY";
 
-      renderForm();
+      renderApp();
     } catch (err) {
       renderFatalError(err.message);
     }
@@ -478,37 +520,6 @@
     });
     return res.json();
   }
-  // ==== TEMP TEST BUTTONS - ลบทิ้งก่อน deploy หน้าจริง ====
-  async function testGetExpenseList() {
-    const scope = prompt("scope? (all/mine)", "all");
-    const res = await callGas({ action: "get_expense_list", uid: myUid, scope: scope });
-    console.log(res);
-    alert(JSON.stringify(res, null, 2));
-  }
-
-  async function testUpdateExpense() {
-    const expenseId = prompt("ExpenseID ที่จะแก้?");
-    const category = prompt("หมวดใหม่?", "ทดสอบลบ (แก้แล้ว)");
-    const note = prompt("โน้ตใหม่?", "");
-    const res = await callGas({ action: "update_expense", uid: myUid, expenseId, category, note });
-    console.log(res);
-    alert(JSON.stringify(res, null, 2));
-  }
-
-  async function testDeleteExpense() {
-    const expenseId = prompt("ExpenseID ที่จะลบ? (ลบแล้วกู้คืนไม่ได้)");
-    if (!confirm("แน่ใจนะว่าจะลบ " + expenseId + " ?")) return;
-    const res = await callGas({ action: "delete_expense", uid: myUid, expenseId });
-    console.log(res);
-    alert(JSON.stringify(res, null, 2));
-  }
-
-  async function testGetSettleUp() {
-    const res = await callGas({ action: "get_settle_up", uid: myUid });
-    console.log(res);
-    alert(JSON.stringify(res, null, 2));
-  }
-  
   function renderNoTrip(message) {
     screen.innerHTML = `
       <div class="error-card">
@@ -537,7 +548,45 @@
     return (name || "?").trim().charAt(0).toUpperCase();
   }
 
+  // ==========================================================
+  // APP SHELL: top tab bar (บันทึก / สรุปยอด) + เนื้อหาตามแท็บ
+  // ==========================================================
+  function renderApp() {
+    const topNavHtml = `
+      <div class="segmented top-nav" role="group" aria-label="เมนูหลัก">
+        <button type="button" data-toptab="form" aria-pressed="${activeTopTab === 'form'}">🧾 บันทึก</button>
+        <button type="button" data-toptab="summary" aria-pressed="${activeTopTab === 'summary'}">📊 สรุปยอด</button>
+      </div>
+    `;
+
+    const bodyHtml = activeTopTab === "form" ? formTicketHtml() : summaryTicketHtml();
+
+    screen.innerHTML = topNavHtml + bodyHtml;
+
+    document.querySelectorAll("[data-toptab]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        activeTopTab = btn.dataset.toptab;
+        renderApp();
+      });
+    });
+
+    if (activeTopTab === "form") {
+      bindFormEvents();
+    } else {
+      bindSummaryEvents();
+      loadSummaryDataIfNeeded();
+    }
+  }
+
+  // เดิมชื่อ renderForm() คือฟังก์ชันที่ set screen.innerHTML ตรงๆ
+  // ตอนนี้เก็บชื่อ renderForm ไว้เป็น wrapper (มีที่อื่นเรียกอยู่ เช่นปุ่ม "บันทึกอีกรายการ")
+  // ให้กลับมาที่แท็บ "บันทึก" เสมอ ส่วนมาร์กอัปจริงย้ายไป formTicketHtml()
   function renderForm() {
+    activeTopTab = "form";
+    renderApp();
+  }
+
+  function formTicketHtml() {
     const avatarInner = myPicture
       ? `<img src="${myPicture}" alt="">`
       : initials(myName);
@@ -560,7 +609,7 @@
         </label>`;
     }).join("");
 
-    screen.innerHTML = `
+    return `
       <div class="ticket">
         <div class="ticket-header">
           <div class="avatar">${avatarInner}</div>
@@ -616,17 +665,324 @@
           <button class="btn btn-cancel" id="cancelBtn">ยกเลิก</button>
           <button class="btn btn-save" id="saveBtn">บันทึก</button>
         </div>
-        
-        <div style="padding:20px; text-align:center; opacity:0.6; border-top:1px dashed var(--rule);">
-          <button type="button" onclick="testGetExpenseList()">Test: get_expense_list</button>
-          <button type="button" onclick="testUpdateExpense()">Test: update_expense</button>
-          <button type="button" onclick="testDeleteExpense()">Test: delete_expense</button>
-          <button type="button" onclick="testGetSettleUp()">Test: get_settle_up</button>
-        </div>
+      </div>
+    `;
+  }
+
+  // ==========================================================
+  // หน้า "สรุปยอด": sub-tab ยอดคงเหลือ / แนะนำโอน / รายการ
+  // ==========================================================
+  function summaryTicketHtml() {
+    const subNavHtml = `
+      <div class="segmented" role="group" aria-label="มุมมองสรุปยอด">
+        <button type="button" data-subtab="balance" aria-pressed="${activeSubTab === 'balance'}">ยอดคงเหลือ</button>
+        <button type="button" data-subtab="settle" aria-pressed="${activeSubTab === 'settle'}">แนะนำโอน</button>
+        <button type="button" data-subtab="list" aria-pressed="${activeSubTab === 'list'}">รายการ</button>
       </div>
     `;
 
-    bindFormEvents();
+    let contentHtml;
+    if (activeSubTab === "balance") contentHtml = balanceContentHtml();
+    else if (activeSubTab === "settle") contentHtml = settleContentHtml();
+    else contentHtml = listContentHtml();
+
+    return `
+      <div class="ticket">
+        <div class="field">${subNavHtml}</div>
+        <div class="divider-plain"></div>
+        ${contentHtml}
+      </div>
+    `;
+  }
+
+  function loadingRow(text) {
+    return `<div class="field" style="text-align:center; color:var(--ink-soft); padding:26px 0;">${escapeHtml(text)}</div>`;
+  }
+
+  async function loadSummaryDataIfNeeded() {
+    if (activeSubTab === "list") {
+      if (expenseCache[listScope] === null) {
+        await fetchExpenseList(listScope);
+        renderApp();
+      }
+    } else if (summaryData === null) {
+      await fetchSummaryData();
+      renderApp();
+    }
+  }
+
+  async function fetchSummaryData() {
+    try {
+      const res = await callGas({ action: "get_settle_up", uid: myUid });
+      summaryData = res.status === "ok"
+        ? { balance: res.balance || {}, transfers: res.transfers || [] }
+        : { balance: {}, transfers: [], error: res.message };
+    } catch (err) {
+      summaryData = { balance: {}, transfers: [], error: err.message };
+    }
+  }
+
+  async function fetchExpenseList(scope) {
+    try {
+      const res = await callGas({ action: "get_expense_list", uid: myUid, scope: scope });
+      if (res.status === "ok") {
+        isAdmin = !!res.isAdmin;
+        expenseCache[scope] = res.expenses || [];
+      } else {
+        expenseCache[scope] = [];
+      }
+    } catch (err) {
+      expenseCache[scope] = [];
+    }
+  }
+
+  function balanceContentHtml() {
+    if (summaryData === null) return loadingRow("กำลังโหลด...");
+    const balance = summaryData.balance;
+    const uids = Object.keys(balance);
+    if (uids.length === 0) return loadingRow("ยังไม่มีข้อมูลยอดคงเหลือ");
+
+    const rows = uids.map(uid => {
+      const b = balance[uid];
+      const positive = b.diff >= 0;
+      const diffText = positive
+        ? "ได้คืน " + b.diff.toFixed(2)
+        : "โอนเพิ่ม " + Math.abs(b.diff).toFixed(2);
+      return `
+        <div class="member-row" style="justify-content:space-between;">
+          <span>${escapeHtml(b.name)}</span>
+          <span class="mono" style="font-weight:600; color:${positive ? 'var(--jade)' : 'var(--red)'};">${diffText}</span>
+        </div>`;
+    }).join("");
+
+    return `<div class="field">${rows}</div>`;
+  }
+
+  function settleContentHtml() {
+    if (summaryData === null) return loadingRow("กำลังโหลด...");
+    const transfers = summaryData.transfers;
+    if (transfers.length === 0) return loadingRow("ยอดลงตัวแล้ว ไม่ต้องโอนเพิ่มครับ");
+
+    const rows = transfers.map(t => `
+      <div class="member-row" style="justify-content:space-between;">
+        <span><b>${escapeHtml(t.fromName)}</b> <span style="color:var(--amber);">→</span> <b>${escapeHtml(t.toName)}</b></span>
+        <span class="mono" style="font-weight:600; color:var(--amber);">฿${t.amountThb.toFixed(2)}</span>
+      </div>`).join("");
+
+    return `<div class="field">${rows}</div>`;
+  }
+
+  function listContentHtml() {
+    const scopeToggleHtml = `
+      <div class="scope-toggle" role="group" aria-label="ขอบเขตรายการ" style="margin-bottom:14px;">
+        <button type="button" data-scope="all" aria-pressed="${listScope === 'all'}">ทั้งหมด</button>
+        <button type="button" data-scope="mine" aria-pressed="${listScope === 'mine'}">จ่ายเอง</button>
+      </div>
+    `;
+
+    const items = expenseCache[listScope];
+    if (items === null || items === undefined) {
+      return `<div class="field">${scopeToggleHtml}<div style="text-align:center; color:var(--ink-soft); padding:18px 0;">กำลังโหลด...</div></div>`;
+    }
+    if (items.length === 0) {
+      return `<div class="field">${scopeToggleHtml}<div style="text-align:center; color:var(--ink-soft); padding:18px 0;">ยังไม่มีรายการ</div></div>`;
+    }
+
+    const rows = items.map(item => {
+      const canEdit = isAdmin || item.paidByUid === myUid;
+      const isExpanded = expandedExpenseId === item.id;
+      const chevron = isExpanded ? "⌄" : "›";
+
+      let expandHtml = "";
+      if (isExpanded) {
+        if (canEdit) {
+          const draft = editDraft[item.id] || { category: item.category, note: item.note || "" };
+          const chipsHtml = CATEGORY_SUGGESTIONS.filter(c => c !== "อื่นๆ").map(c => {
+            const pressed = draft.category === c;
+            return `<button type="button" class="chip" data-expense-chip="${escapeHtml(item.id)}" data-cat="${escapeHtml(c)}" aria-pressed="${pressed}">${escapeHtml(c)}</button>`;
+          }).join("");
+
+          expandHtml = `
+            <div style="padding:0 4px 16px;">
+              <input type="text" class="text-input" data-expense-category="${escapeHtml(item.id)}" value="${escapeHtml(draft.category)}" style="margin-bottom:8px; font-size:13px; padding:9px 11px;">
+              <div class="category-chips" style="margin-bottom:10px;">${chipsHtml}</div>
+              <input type="text" class="text-input" data-expense-note="${escapeHtml(item.id)}" placeholder="โน้ต" value="${escapeHtml(draft.note)}" style="margin-bottom:12px; font-size:13px; padding:9px 11px;">
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-save" data-save-expense="${escapeHtml(item.id)}" style="padding:11px; font-size:13.5px;">บันทึก</button>
+                <button type="button" data-delete-expense="${escapeHtml(item.id)}" style="border:1.5px solid var(--red); color:var(--red); background:transparent; padding:11px 16px; border-radius:12px; font-family:'IBM Plex Sans Thai',sans-serif; font-weight:600; font-size:13.5px; cursor:pointer;">ลบ</button>
+              </div>
+              <div data-confirm-box="${escapeHtml(item.id)}" style="display:none; align-items:center; gap:8px; margin-top:10px; background:#FBEAE8; padding:10px 12px; border-radius:10px;">
+                <span style="font-size:12.5px; color:var(--red); flex:1;">ลบรายการนี้ถาวร ยืนยันไหม?</span>
+                <button type="button" data-confirm-delete="${escapeHtml(item.id)}" style="background:var(--red); color:#fff; border:none; padding:7px 12px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer;">ลบ</button>
+                <button type="button" data-cancel-delete="${escapeHtml(item.id)}" style="background:transparent; border:1px solid var(--rule); color:var(--ink-soft); padding:7px 12px; border-radius:8px; font-size:12px; cursor:pointer;">ยกเลิก</button>
+              </div>
+            </div>
+          `;
+        } else {
+          expandHtml = `
+            <div style="padding:0 4px 16px; font-size:13px; color:var(--ink-soft);">
+              ${item.note ? escapeHtml(item.note) : "ไม่มีโน้ตเพิ่มเติม"}
+            </div>
+          `;
+        }
+      }
+
+      return `
+        <div class="expense-row" style="border-bottom:1px solid var(--rule);">
+          <div class="expense-row-head" data-toggle-expense="${escapeHtml(item.id)}" style="display:flex; justify-content:space-between; align-items:center; padding:12px 4px; cursor:pointer;">
+            <span style="font-size:13.5px; color:var(--ink);"><b>${escapeHtml(item.category)}</b> · ${escapeHtml(item.paidByName)}</span>
+            <span style="display:flex; align-items:center; gap:8px;">
+              <span class="mono" style="font-size:13.5px; font-weight:600;">฿${Number(item.amountThb).toFixed(2)}</span>
+              <span style="color:var(--ink-soft); font-size:14px;">${chevron}</span>
+            </span>
+          </div>
+          ${expandHtml}
+        </div>
+      `;
+    }).join("");
+
+    return `<div class="field">${scopeToggleHtml}${rows}</div>`;
+  }
+
+  function bindSummaryEvents() {
+    document.querySelectorAll("[data-subtab]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        activeSubTab = btn.dataset.subtab;
+        renderApp();
+      });
+    });
+
+    if (activeSubTab !== "list") return;
+
+    document.querySelectorAll("[data-scope]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        listScope = btn.dataset.scope;
+        expandedExpenseId = null;
+        renderApp();
+      });
+    });
+
+    document.querySelectorAll("[data-toggle-expense]").forEach(el => {
+      el.addEventListener("click", () => {
+        const id = el.dataset.toggleExpense;
+        expandedExpenseId = expandedExpenseId === id ? null : id;
+        renderApp();
+      });
+    });
+
+    document.querySelectorAll("[data-expense-chip]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.expenseChip;
+        editDraft[id] = editDraft[id] || {};
+        editDraft[id].category = btn.dataset.cat;
+        const noteInput = document.querySelector(`[data-expense-note="${id}"]`);
+        editDraft[id].note = noteInput ? noteInput.value : (editDraft[id].note || "");
+        renderApp();
+      });
+    });
+
+    document.querySelectorAll("[data-expense-category]").forEach(input => {
+      input.addEventListener("input", (e) => {
+        const id = input.dataset.expenseCategory;
+        editDraft[id] = editDraft[id] || {};
+        editDraft[id].category = e.target.value;
+      });
+    });
+
+    document.querySelectorAll("[data-expense-note]").forEach(input => {
+      input.addEventListener("input", (e) => {
+        const id = input.dataset.expenseNote;
+        editDraft[id] = editDraft[id] || {};
+        editDraft[id].note = e.target.value;
+      });
+    });
+
+    document.querySelectorAll("[data-save-expense]").forEach(btn => {
+      btn.addEventListener("click", () => handleSaveExpenseEdit(btn.dataset.saveExpense));
+    });
+
+    document.querySelectorAll("[data-delete-expense]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const box = document.querySelector(`[data-confirm-box="${btn.dataset.deleteExpense}"]`);
+        if (box) box.style.display = "flex";
+      });
+    });
+
+    document.querySelectorAll("[data-cancel-delete]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const box = document.querySelector(`[data-confirm-box="${btn.dataset.cancelDelete}"]`);
+        if (box) box.style.display = "none";
+      });
+    });
+
+    document.querySelectorAll("[data-confirm-delete]").forEach(btn => {
+      btn.addEventListener("click", () => handleDeleteExpense(btn.dataset.confirmDelete));
+    });
+  }
+
+  function updateCachedExpense(id, changes) {
+    ["all", "mine"].forEach(scope => {
+      const arr = expenseCache[scope];
+      if (!arr) return;
+      const item = arr.find(e => e.id === id);
+      if (item) Object.assign(item, changes);
+    });
+  }
+
+  function deleteCachedExpense(id) {
+    ["all", "mine"].forEach(scope => {
+      const arr = expenseCache[scope];
+      if (!arr) return;
+      const idx = arr.findIndex(e => e.id === id);
+      if (idx !== -1) arr.splice(idx, 1);
+    });
+  }
+
+  async function handleSaveExpenseEdit(id) {
+    const draft = editDraft[id];
+    if (!draft || !draft.category || !draft.category.trim()) {
+      alert("กรุณากรอกหมวดหมู่");
+      return;
+    }
+    const btn = document.querySelector(`[data-save-expense="${id}"]`);
+    if (btn) { btn.disabled = true; btn.textContent = "กำลังบันทึก..."; }
+    try {
+      const res = await callGas({
+        action: "update_expense",
+        uid: myUid,
+        expenseId: id,
+        category: draft.category.trim(),
+        note: (draft.note || "").trim()
+      });
+      if (res.status === "ok") {
+        updateCachedExpense(id, { category: res.category, note: res.note });
+        delete editDraft[id];
+        expandedExpenseId = null;
+        renderApp();
+      } else {
+        alert("บันทึกไม่สำเร็จ: " + res.message);
+        if (btn) { btn.disabled = false; btn.textContent = "บันทึก"; }
+      }
+    } catch (err) {
+      alert("เชื่อมต่อไม่สำเร็จ: " + err.message);
+      if (btn) { btn.disabled = false; btn.textContent = "บันทึก"; }
+    }
+  }
+
+  async function handleDeleteExpense(id) {
+    try {
+      const res = await callGas({ action: "delete_expense", uid: myUid, expenseId: id });
+      if (res.status === "ok") {
+        deleteCachedExpense(id);
+        summaryData = null; // ยอดรวม/ยอดคงเหลือเปลี่ยน ต้องคำนวณใหม่รอบหน้า
+        expandedExpenseId = null;
+        renderApp();
+      } else {
+        alert("ลบไม่สำเร็จ: " + res.message);
+      }
+    } catch (err) {
+      alert("เชื่อมต่อไม่สำเร็จ: " + err.message);
+    }
   }
 
   function bindFormEvents() {
@@ -641,10 +997,10 @@
     });
     document.getElementById("currencySymbol").textContent = currency === "CNY" ? "¥" : "฿";
 
-    document.querySelectorAll(".segmented button").forEach(btn => {
+    document.querySelectorAll("[data-split]").forEach(btn => {
       btn.addEventListener("click", () => {
         splitType = btn.dataset.split;
-        document.querySelectorAll(".segmented button").forEach(b => {
+        document.querySelectorAll("[data-split]").forEach(b => {
           b.setAttribute("aria-pressed", b === btn ? "true" : "false");
         });
         const list = document.getElementById("memberList");
@@ -751,6 +1107,8 @@
       const data = await callGas(payload);
 
       if (data.status === "ok") {
+        summaryData = null;
+        expenseCache = { all: null, mine: null };
         renderSuccess(amount, currency, category);
       } else {
         showFormError("บันทึกไม่สำเร็จ: " + data.message);
