@@ -752,27 +752,30 @@
     }
   }
 
-  function balanceContentHtml() {
-    if (summaryData === null) return loadingRow("กำลังโหลด...");
-    const balance = summaryData.balance;
-    const uids = Object.keys(balance);
-    if (uids.length === 0) return loadingRow("ยังไม่มีข้อมูลยอดคงเหลือ");
+function balanceContentHtml() {
+  if (summaryData === null) return loadingRow("กำลังโหลด...");
+  const balance = summaryData.balance;
+  const uids = Object.keys(balance);
+  if (uids.length === 0) return loadingRow("ยังไม่มีข้อมูลยอดคงเหลือ");
 
-    const rows = uids.map(uid => {
-      const b = balance[uid];
-      const positive = b.diff >= 0;
-      const diffText = positive
-        ? "ได้คืน " + b.diff.toFixed(2)
-        : "โอนเพิ่ม " + Math.abs(b.diff).toFixed(2);
-      return `
-        <div class="member-row" style="justify-content:space-between;">
-          <span>${escapeHtml(b.name)}</span>
-          <span class="mono" style="font-weight:600; color:${positive ? 'var(--jade)' : 'var(--red)'};">${diffText}</span>
-        </div>`;
-    }).join("");
+  const rows = uids.map(uid => {
+    const b = balance[uid];
+    const positive = b.diff >= 0;
+    const diffText = positive
+      ? "ได้คืน " + b.diff.toFixed(2)
+      : "โอนเพิ่ม " + Math.abs(b.diff).toFixed(2);
+    return `
+      <div class="member-row" style="justify-content:space-between; align-items:flex-start;">
+        <span style="padding-top:2px;">${escapeHtml(b.name)}</span>
+        <span style="text-align:right;">
+          <span class="mono" style="display:block; font-weight:600; color:${positive ? 'var(--jade)' : 'var(--red)'};">${diffText}</span>
+          <span class="mono" style="display:block; font-size:11px; color:var(--ink-soft); margin-top:2px;">จ่ายไปทั้งหมด ${b.paid.toFixed(2)} บ.</span>
+        </span>
+      </div>`;
+  }).join("");
 
-    return `<div class="field">${rows}</div>`;
-  }
+  return `<div class="field">${rows}</div>`;
+}
 
   function settleContentHtml() {
     if (summaryData === null) return loadingRow("กำลังโหลด...");
